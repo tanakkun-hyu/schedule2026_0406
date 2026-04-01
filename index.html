@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2026年 4〜7月 スケジュール管理表</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Noto Sans JP', sans-serif; background: #f8f9fb; overflow: hidden; height: 100vh; }
+::-webkit-scrollbar { height:10px; width:10px; }
+::-webkit-scrollbar-track { background:#eee; border-radius:5px; }
+::-webkit-scrollbar-thumb { background:#bbb; border-radius:5px; }
+::-webkit-scrollbar-thumb:hover { background:#888; }
+
+.header { padding: 14px 20px 6px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+.header h1 { font-size: 20px; font-weight: 700; color: #2C3E50; letter-spacing: 0.5px; }
+.legend { display: flex; gap: 10px; flex-wrap: wrap; }
+.legend-item { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #555; }
+.legend-dot { width: 13px; height: 13px; border-radius: 3px; }
+.hint { margin: 0 20px 10px; font-size: 11px; color: #999; }
+
+.main { display: flex; overflow: hidden; margin: 0 8px; border: 1px solid #ddd; border-radius: 8px; background: #fff; height: calc(100vh - 100px); }
+
+/* Left panel */
+.left-panel { min-width: 460px; max-width: 460px; z-index: 10; background: #fff; border-right: 2px solid #ccc; display: flex; flex-direction: column; }
+.left-header { height: 82px; display: grid; grid-template-columns: 38px 1fr 88px 76px 76px; background: #2C3E50; color: #fff; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+.left-header div { display: flex; align-items: center; justify-content: center; border-right: 1px solid rgba(255,255,255,0.15); padding: 0 4px; }
+.left-body { overflow-y: hidden; flex: 1; }
+.left-row { height: 32px; display: grid; grid-template-columns: 38px 1fr 88px 76px 76px; border-bottom: 1px solid #eee; font-size: 11px; }
+.left-row:nth-child(odd) { background: #fafafa; }
+.left-row:nth-child(even) { background: #fff; }
+.left-row div { display: flex; align-items: center; justify-content: center; }
+.left-row .name-cell { justify-content: flex-start; padding: 0 6px; }
+.left-row input[type=text] { width: 100%; border: none; background: transparent; font-size: 11px; font-family: inherit; padding: 2px 0; }
+.left-row input[type=text]:focus { outline: 2px solid #4472C4; outline-offset: -1px; border-radius: 2px; }
+.left-row select { border: 1px solid #ddd; border-radius: 4px; font-size: 10px; padding: 2px 4px; font-weight: 600; cursor: pointer; font-family: inherit; }
+.left-row select:focus { outline: 2px solid #4472C4; }
+.date-cell { cursor: pointer; color: #4472C4; font-size: 10px; font-weight: 500; }
+.date-cell:hover { text-decoration: underline; }
+
+/* Right chart panel */
+.right-panel { overflow-x: auto; overflow-y: auto; flex: 1; }
+.chart-inner { position: relative; }
+.month-row { display: flex; height: 28px; position: sticky; top: 0; z-index: 5; }
+.month-cell { display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; color: #fff; border-right: 1px solid rgba(255,255,255,0.3); }
+.day-row { display: flex; height: 27px; position: sticky; top: 28px; z-index: 5; }
+.dow-row { display: flex; height: 27px; position: sticky; top: 55px; z-index: 5; }
+.day-cell, .dow-cell { display: flex; align-items: center; justify-content: center; border-right: 1px solid #e8e8e8; }
+.day-cell { font-size: 10px; font-weight: 600; }
+.dow-cell { font-size: 9px; border-bottom: 2px solid #ccc; }
+
+.task-row { height: 32px; position: relative; display: flex; border-bottom: 1px solid #f0f0f0; }
+.task-row:nth-child(odd) { background: #fafafa; }
+.task-row:nth-child(even) { background: #fff; }
+.grid-cell { border-right: 1px solid #f0f0f0; }
+
+.bar-group { position: absolute; top: 4px; height: 24px; display: flex; align-items: center; z-index: 2; }
+.bar-main { width: 100%; height: 100%; border-radius: 5px; display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 600; cursor: grab; box-shadow: 0 2px 6px rgba(0,0,0,0.15); overflow: hidden;
+  white-space: nowrap; padding: 0 8px; user-select: none; transition: filter 0.15s; }
+.bar-main:hover { filter: brightness(1.1); }
+.bar-handle { position: absolute; top: 0; bottom: 0; width: 6px; cursor: ew-resize; background: rgba(0,0,0,0.2);
+  opacity: 0; transition: opacity 0.2s; border-radius: 3px; }
+.bar-group:hover .bar-handle { opacity: 1; }
+.bar-handle-l { left: 0; border-radius: 4px 0 0 4px; }
+.bar-handle-r { right: 0; border-radius: 0 4px 4px 0; }
+
+/* Date picker */
+.dp-overlay { position: fixed; top:0; left:0; right:0; bottom:0; z-index: 1000; background: rgba(0,0,0,0.25); }
+.dp-popup { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+  background: #fff; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); padding: 20px; min-width: 280px; }
+.dp-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.dp-nav button { background: none; border: none; font-size: 18px; cursor: pointer; padding: 4px 8px; border-radius: 4px; }
+.dp-nav button:hover { background: #eee; }
+.dp-nav span { font-weight: 700; font-size: 16px; }
+.dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; font-size: 12px; }
+.dp-dow { font-weight: 700; padding: 4px; }
+.dp-day { padding: 6px; border-radius: 6px; cursor: pointer; transition: background 0.15s; }
+.dp-day:hover { background: #E3EEF9; }
+.dp-day.selected { background: #4472C4; color: #fff !important; font-weight: 700; }
+.dp-day.selected:hover { background: #3a63a8; }
+</style>
+</head>
+<body>
+
+<div id="app"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+
+<script>
+const { useState, useRef, useCallback, useEffect, useMemo, createElement: h } = React;
+
+const CATEGORIES = {
+  "仕事": { bg:"#4472C4", fg:"#fff" },
+  "Side Job": { bg:"#7B2D8B", fg:"#fff" },
+  "美術": { bg:"#2ECC71", fg:"#fff" },
+  "プライベート": { bg:"#ED7D31", fg:"#fff" },
+  "期限": { bg:"#FF4444", fg:"#fff" },
+};
+const CAT_KEYS = Object.keys(CATEGORIES);
+const WEEKDAY_JP = ["日","月","火","水","木","金","土"];
+const MONTH_COLORS = { 3:"#82B366", 4:"#6C8EBF", 5:"#82B366", 6:"#6C8EBF" };
+const MONTH_BG = { 3:"#E8F5E2", 4:"#E3EEF9", 5:"#E8F5E2", 6:"#E3EEF9" };
+const WEEKEND_BG_SAT = { 3:"#ddeedd", 4:"#d4e2f4", 5:"#ddeedd", 6:"#d4e2f4" };
+
+const HOLIDAYS = ["2026-04-29","2026-05-03","2026-05-04","2026-05-05","2026-05-06","2026-07-20"]
+  .map(d => new Date(d+"T00:00:00").getTime());
+const isHoliday = d => HOLIDAYS.includes(d.getTime());
+
+const toDS = d => { const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,"0"), dd=String(d.getDate()).padStart(2,"0"); return `${y}-${m}-${dd}`; };
+const pD = s => s ? new Date(s+"T00:00:00") : null;
+const addD = (d,n) => { const r=new Date(d); r.setDate(r.getDate()+n); return r; };
+const diffD = (a,b) => Math.round((a-b)/864e5);
+
+const START = new Date("2026-04-01T00:00:00");
+const END = new Date("2026-07-31T00:00:00");
+const allDates = []; for(let d=new Date(START); d<=END; d=addD(d,1)) allDates.push(new Date(d));
+const TOTAL = allDates.length;
+const CW = 26, CH = 32;
+
+const sampleTasks = [
+  {id:1,name:"Q1レポート作成",cat:"仕事",start:"2026-04-01",end:"2026-04-10"},
+  {id:2,name:"副業：Webデザイン案件",cat:"Side Job",start:"2026-04-03",end:"2026-04-15"},
+  {id:3,name:"油絵制作",cat:"美術",start:"2026-04-05",end:"2026-04-20"},
+  {id:4,name:"チームMTG準備",cat:"仕事",start:"2026-04-08",end:"2026-04-08"},
+  {id:5,name:"新プロジェクト企画書",cat:"仕事",start:"2026-04-10",end:"2026-04-22"},
+  {id:6,name:"GW旅行計画",cat:"プライベート",start:"2026-04-20",end:"2026-04-30"},
+  {id:7,name:"契約書提出",cat:"期限",start:"2026-04-28",end:"2026-04-28"},
+  {id:8,name:"予算会議",cat:"仕事",start:"2026-05-01",end:"2026-05-01"},
+  {id:9,name:"副業：ロゴデザイン",cat:"Side Job",start:"2026-05-05",end:"2026-05-18"},
+  {id:10,name:"展覧会出品作品制作",cat:"美術",start:"2026-05-08",end:"2026-05-30"},
+  {id:11,name:"中間レビュー",cat:"仕事",start:"2026-05-11",end:"2026-05-20"},
+  {id:12,name:"健康診断",cat:"プライベート",start:"2026-05-15",end:"2026-05-15"},
+  {id:13,name:"展示会出展",cat:"仕事",start:"2026-05-20",end:"2026-05-28"},
+  {id:14,name:"申告書提出期限",cat:"期限",start:"2026-05-31",end:"2026-05-31"},
+  {id:15,name:"社内研修",cat:"仕事",start:"2026-06-01",end:"2026-06-05"},
+  {id:16,name:"副業：アプリ開発",cat:"Side Job",start:"2026-06-03",end:"2026-06-20"},
+  {id:17,name:"デッサン教室",cat:"美術",start:"2026-06-08",end:"2026-06-15"},
+  {id:18,name:"株主総会資料",cat:"仕事",start:"2026-06-10",end:"2026-06-18"},
+  {id:19,name:"半期レビュー",cat:"仕事",start:"2026-06-15",end:"2026-06-17"},
+  {id:20,name:"夏季キャンペーン企画",cat:"仕事",start:"2026-06-20",end:"2026-06-30"},
+  {id:21,name:"Q2レポート締切",cat:"期限",start:"2026-06-30",end:"2026-06-30"},
+  {id:22,name:"新規事業計画策定",cat:"仕事",start:"2026-07-01",end:"2026-07-15"},
+  {id:23,name:"副業：写真撮影案件",cat:"Side Job",start:"2026-07-03",end:"2026-07-10"},
+  {id:24,name:"水彩画制作",cat:"美術",start:"2026-07-05",end:"2026-07-20"},
+  {id:25,name:"夏祭り準備",cat:"プライベート",start:"2026-07-10",end:"2026-07-18"},
+  {id:26,name:"中間報告書提出",cat:"期限",start:"2026-07-15",end:"2026-07-15"},
+  {id:27,name:"チームビルディング",cat:"プライベート",start:"2026-07-20",end:"2026-07-22"},
+  {id:28,name:"月次報告書",cat:"仕事",start:"2026-07-25",end:"2026-07-31"},
+];
+const emptyRows = Array.from({length:50-sampleTasks.length},(_,i)=>({id:sampleTasks.length+i+1,name:"",cat:"仕事",start:"",end:""}));
+const initTasks = [...sampleTasks,...emptyRows];
+
+function DatePicker({taskId, field, currentVal, onSelect, onClose}) {
+  const d = pD(currentVal);
+  const [vm, setVm] = useState(d ? new Date(d.getFullYear(),d.getMonth(),1) : new Date(2026,3,1));
+  const dim = new Date(vm.getFullYear(),vm.getMonth()+1,0).getDate();
+  const fdow = new Date(vm.getFullYear(),vm.getMonth(),1).getDay();
+  const cells = [];
+  for(let i=0;i<fdow;i++) cells.push(null);
+  for(let i=1;i<=dim;i++) cells.push(i);
+
+  return h("div",{className:"dp-overlay",onClick:onClose},
+    h("div",{className:"dp-popup",onClick:e=>e.stopPropagation()},
+      h("div",{className:"dp-nav"},
+        h("button",{onClick:()=>setVm(new Date(vm.getFullYear(),vm.getMonth()-1,1))},"◀"),
+        h("span",null,`${vm.getFullYear()}年${vm.getMonth()+1}月`),
+        h("button",{onClick:()=>setVm(new Date(vm.getFullYear(),vm.getMonth()+1,1))},"▶"),
+      ),
+      h("div",{className:"dp-grid"},
+        ...WEEKDAY_JP.map(w=>h("div",{key:w,className:"dp-dow",style:{color:w==="日"?"#e44":w==="土"?"#44a":"#333"}},w)),
+        ...cells.map((day,i)=>{
+          if(!day) return h("div",{key:"e"+i});
+          const dt = new Date(vm.getFullYear(),vm.getMonth(),day);
+          const ds = toDS(dt);
+          const sel = ds===currentVal;
+          const hol = isHoliday(dt);
+          const dow = dt.getDay();
+          return h("div",{key:i, className:"dp-day"+(sel?" selected":""),
+            style:{color:sel?"#fff":hol||dow===0?"#e44":dow===6?"#44a":"#333"},
+            onClick:()=>{onSelect(taskId,field,ds);onClose();}}, day);
+        })
+      )
+    )
+  );
+}
+
+function App() {
+  const [tasks, setTasks] = useState(initTasks);
+  const [drag, setDrag] = useState(null);
+  const [dp, setDp] = useState(null);
+  const dragRef = useRef(null);
+
+  const upd = useCallback((id,f,v)=>setTasks(p=>p.map(t=>t.id===id?{...t,[f]:v}:t)),[]);
+
+  // Drag
+  const startDrag = useCallback((e,t,mode)=>{
+    e.preventDefault(); e.stopPropagation();
+    const s=pD(t.start), en=pD(t.end);
+    if(!s||!en) return;
+    dragRef.current = {taskId:t.id, mode, startX:e.clientX, origStart:s, origEnd:en};
+    setDrag(true);
+  },[]);
+
+  useEffect(()=>{
+    if(!drag) return;
+    const onMove = e => {
+      const dr = dragRef.current; if(!dr) return;
+      const dx = e.clientX - dr.startX;
+      const dd = Math.round(dx/CW);
+      let ns, ne;
+      if(dr.mode==="move"){ ns=addD(dr.origStart,dd); ne=addD(dr.origEnd,dd); }
+      else if(dr.mode==="resize-left"){ ns=addD(dr.origStart,dd); ne=dr.origEnd; if(ns>ne) ns=ne; }
+      else { ns=dr.origStart; ne=addD(dr.origEnd,dd); if(ne<ns) ne=ns; }
+      if(ns<START){const df=diffD(START,ns);ns=START;ne=addD(ne,df);}
+      if(ne>END) ne=END;
+      setTasks(p=>p.map(t=>t.id===dr.taskId?{...t,start:toDS(ns),end:toDS(ne)}:t));
+    };
+    const onUp = ()=>{ dragRef.current=null; setDrag(false); };
+    window.addEventListener("mousemove",onMove);
+    window.addEventListener("mouseup",onUp);
+    return ()=>{ window.removeEventListener("mousemove",onMove); window.removeEventListener("mouseup",onUp); };
+  },[drag]);
+
+  const months = useMemo(()=>{
+    const m=[]; let cur=null;
+    allDates.forEach((d,i)=>{
+      const mo=d.getMonth();
+      if(mo!==cur){m.push({month:mo,start:i,count:0,label:(mo+1)+"月"});cur=mo;}
+      m[m.length-1].count++;
+    });
+    return m;
+  },[]);
+
+  const syncScroll = e => {
+    const lb = document.getElementById("lb");
+    if(lb) lb.scrollTop = e.target.scrollTop;
+  };
+
+  return h("div", null,
+    // Header
+    h("div",{className:"header"},
+      h("h1",null,"📅 2026年 4月〜7月 スケジュール管理表"),
+      h("div",{className:"legend"},
+        ...CAT_KEYS.map(c=>h("div",{key:c,className:"legend-item"},
+          h("div",{className:"legend-dot",style:{background:CATEGORIES[c].bg}}),c))
+      )
+    ),
+    h("p",{className:"hint"},"💡 バーをドラッグで移動 ｜ 左右端をドラッグでリサイズ ｜ 日付欄クリックでカレンダー選択"),
+
+    // Main
+    h("div",{className:"main"},
+      // Left
+      h("div",{className:"left-panel"},
+        h("div",{className:"left-header"},
+          ...["No","タスク名","カテゴリ","開始日","終了日"].map(x=>h("div",{key:x},x))
+        ),
+        h("div",{className:"left-body",id:"lb"},
+          ...tasks.map(t=>{
+            const catC = CATEGORIES[t.cat]||CATEGORIES["仕事"];
+            const sD=pD(t.start), eD=pD(t.end);
+            return h("div",{key:t.id,className:"left-row"},
+              h("div",{style:{color:"#999",fontSize:10}},t.id),
+              h("div",{className:"name-cell"},
+                h("input",{type:"text",value:t.name,placeholder:"タスク名を入力...",
+                  onChange:e=>upd(t.id,"name",e.target.value)})
+              ),
+              h("div",null,
+                h("select",{value:t.cat,onChange:e=>upd(t.id,"cat",e.target.value),
+                  style:{background:catC.bg+"22",color:catC.bg}},
+                  ...CAT_KEYS.map(c=>h("option",{key:c,value:c},c))
+                )
+              ),
+              h("div",{className:"date-cell",onClick:()=>setDp({taskId:t.id,field:"start",val:t.start})},
+                sD ? (sD.getMonth()+1)+"/"+sD.getDate() : "📅"
+              ),
+              h("div",{className:"date-cell",onClick:()=>setDp({taskId:t.id,field:"end",val:t.end})},
+                eD ? (eD.getMonth()+1)+"/"+eD.getDate() : "📅"
+              ),
+            );
+          })
+        )
+      ),
+
+      // Right
+      h("div",{className:"right-panel",onScroll:syncScroll},
+        h("div",{className:"chart-inner",style:{minWidth:TOTAL*CW}},
+          // Month row
+          h("div",{className:"month-row"},
+            ...months.map(m=>h("div",{key:m.month,className:"month-cell",
+              style:{width:m.count*CW,background:MONTH_COLORS[m.month]}},m.label))
+          ),
+          // Day row
+          h("div",{className:"day-row"},
+            ...allDates.map((d,i)=>{
+              const dow=d.getDay(), hol=isHoliday(d), mo=d.getMonth();
+              let bg=MONTH_BG[mo], color="#333";
+              if(hol||dow===0){bg="#FFE0E0";color="#e33";}
+              else if(dow===6){bg=WEEKEND_BG_SAT[mo];color="#33a";}
+              return h("div",{key:i,className:"day-cell",style:{width:CW,minWidth:CW,background:bg,color}},d.getDate());
+            })
+          ),
+          // DOW row
+          h("div",{className:"dow-row"},
+            ...allDates.map((d,i)=>{
+              const dow=d.getDay(), hol=isHoliday(d), mo=d.getMonth();
+              let bg=MONTH_BG[mo], color="#666";
+              if(hol||dow===0){bg="#FFE0E0";color="#e33";}
+              else if(dow===6){bg=WEEKEND_BG_SAT[mo];color="#33a";}
+              return h("div",{key:i,className:"dow-cell",style:{width:CW,minWidth:CW,background:bg,color}},WEEKDAY_JP[dow]);
+            })
+          ),
+          // Task rows
+          ...tasks.map((t,idx)=>{
+            const s=pD(t.start), e=pD(t.end);
+            const cat=CATEGORIES[t.cat]||CATEGORIES["仕事"];
+            let hasBar=false, bL=0, bW=0;
+            if(s&&e&&s>=START&&e<=END){bL=diffD(s,START)*CW;bW=(diffD(e,s)+1)*CW;hasBar=true;}
+            const single = s&&e&&s.getTime()===e.getTime();
+
+            return h("div",{key:t.id,className:"task-row"},
+              // Grid bg
+              ...allDates.map((d,di)=>{
+                const dow=d.getDay(), hol=isHoliday(d);
+                let bg="transparent";
+                if(hol||dow===0) bg="#FFF8F8";
+                else if(dow===6) bg="#F8FAFF";
+                return h("div",{key:di,className:"grid-cell",style:{width:CW,minWidth:CW,background:bg}});
+              }),
+              // Bar
+              hasBar ? h("div",{className:"bar-group",style:{left:bL,width:bW}},
+                !single && h("div",{className:"bar-handle bar-handle-l",onMouseDown:e=>startDrag(e,t,"resize-left")}),
+                h("div",{className:"bar-main",style:{background:cat.bg,color:cat.fg},
+                  onMouseDown:e=>startDrag(e,t,"move")},
+                  single?"★":bW>60?t.name:bW>35?t.name.slice(0,3):""
+                ),
+                !single && h("div",{className:"bar-handle bar-handle-r",onMouseDown:e=>startDrag(e,t,"resize-right")}),
+              ) : null
+            );
+          })
+        )
+      )
+    ),
+
+    // Date picker
+    dp ? h(DatePicker, {taskId:dp.taskId, field:dp.field, currentVal:dp.val,
+      onSelect:upd, onClose:()=>setDp(null)}) : null
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("app")).render(h(App));
+</script>
+</body>
+</html>
