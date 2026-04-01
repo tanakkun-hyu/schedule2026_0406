@@ -18,11 +18,13 @@ body { font-family: 'Noto Sans JP', sans-serif; background: #f8f9fb; overflow: h
 .legend { display: flex; gap: 10px; flex-wrap: wrap; }
 .legend-item { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #555; }
 .legend-dot { width: 13px; height: 13px; border-radius: 3px; }
+.toolbar button { padding: 5px 12px; border-radius: 6px; border: 1px solid #ccc; background: #fff; font-size: 11px;
+  font-family: inherit; cursor: pointer; color: #555; transition: all 0.15s; }
+.toolbar button:hover { background: #eee; border-color: #aaa; }
 .hint { margin: 0 20px 10px; font-size: 11px; color: #999; }
 
 .main { display: flex; overflow: hidden; margin: 0 8px; border: 1px solid #ddd; border-radius: 8px; background: #fff; height: calc(100vh - 100px); }
 
-/* Left panel */
 .left-panel { min-width: 460px; max-width: 460px; z-index: 10; background: #fff; border-right: 2px solid #ccc; display: flex; flex-direction: column; }
 .left-header { height: 82px; display: grid; grid-template-columns: 38px 1fr 88px 76px 76px; background: #2C3E50; color: #fff; font-size: 11px; font-weight: 700; flex-shrink: 0; }
 .left-header div { display: flex; align-items: center; justify-content: center; border-right: 1px solid rgba(255,255,255,0.15); padding: 0 4px; }
@@ -39,7 +41,6 @@ body { font-family: 'Noto Sans JP', sans-serif; background: #f8f9fb; overflow: h
 .date-cell { cursor: pointer; color: #4472C4; font-size: 10px; font-weight: 500; }
 .date-cell:hover { text-decoration: underline; }
 
-/* Right chart panel */
 .right-panel { overflow-x: auto; overflow-y: auto; flex: 1; }
 .chart-inner { position: relative; }
 .month-row { display: flex; height: 28px; position: sticky; top: 0; z-index: 5; }
@@ -66,7 +67,6 @@ body { font-family: 'Noto Sans JP', sans-serif; background: #f8f9fb; overflow: h
 .bar-handle-l { left: 0; border-radius: 4px 0 0 4px; }
 .bar-handle-r { right: 0; border-radius: 0 4px 4px 0; }
 
-/* Date picker */
 .dp-overlay { position: fixed; top:0; left:0; right:0; bottom:0; z-index: 1000; background: rgba(0,0,0,0.25); }
 .dp-popup { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
   background: #fff; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); padding: 20px; min-width: 280px; }
@@ -80,17 +80,24 @@ body { font-family: 'Noto Sans JP', sans-serif; background: #f8f9fb; overflow: h
 .dp-day:hover { background: #E3EEF9; }
 .dp-day.selected { background: #4472C4; color: #fff !important; font-weight: 700; }
 .dp-day.selected:hover { background: #3a63a8; }
+
+.toast { position: fixed; bottom: 20px; right: 20px; background: #2C3E50; color: #fff; padding: 10px 20px;
+  border-radius: 8px; font-size: 13px; z-index: 2000; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+.toast.show { opacity: 1; }
 </style>
 </head>
 <body>
 
 <div id="app"></div>
+<div id="toast" class="toast"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 
 <script>
 const { useState, useRef, useCallback, useEffect, useMemo, createElement: h } = React;
+
+const STORAGE_KEY = "gantt_schedule_2026_v1";
 
 const CATEGORIES = {
   "仕事": { bg:"#4472C4", fg:"#fff" },
@@ -120,7 +127,7 @@ const allDates = []; for(let d=new Date(START); d<=END; d=addD(d,1)) allDates.pu
 const TOTAL = allDates.length;
 const CW = 26, CH = 32;
 
-const sampleTasks = [
+const defaultTasks = [
   {id:1,name:"Q1レポート作成",cat:"仕事",start:"2026-04-01",end:"2026-04-10"},
   {id:2,name:"副業：Webデザイン案件",cat:"Side Job",start:"2026-04-03",end:"2026-04-15"},
   {id:3,name:"油絵制作",cat:"美術",start:"2026-04-05",end:"2026-04-20"},
@@ -150,8 +157,22 @@ const sampleTasks = [
   {id:27,name:"チームビルディング",cat:"プライベート",start:"2026-07-20",end:"2026-07-22"},
   {id:28,name:"月次報告書",cat:"仕事",start:"2026-07-25",end:"2026-07-31"},
 ];
-const emptyRows = Array.from({length:50-sampleTasks.length},(_,i)=>({id:sampleTasks.length+i+1,name:"",cat:"仕事",start:"",end:""}));
-const initTasks = [...sampleTasks,...emptyRows];
+
+function buildInitialTasks() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) { const p = JSON.parse(saved); if (Array.isArray(p) && p.length > 0) return p; }
+  } catch(e) {}
+  const empty = Array.from({length:50-defaultTasks.length},(_,i)=>({id:defaultTasks.length+i+1,name:"",cat:"仕事",start:"",end:""}));
+  return [...defaultTasks, ...empty];
+}
+
+function showToast(msg) {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.classList.add("show");
+  setTimeout(() => el.classList.remove("show"), 1500);
+}
 
 function DatePicker({taskId, field, currentVal, onSelect, onClose}) {
   const d = pD(currentVal);
@@ -188,14 +209,42 @@ function DatePicker({taskId, field, currentVal, onSelect, onClose}) {
 }
 
 function App() {
-  const [tasks, setTasks] = useState(initTasks);
+  const [tasks, setTasks] = useState(buildInitialTasks);
   const [drag, setDrag] = useState(null);
   const [dp, setDp] = useState(null);
   const dragRef = useRef(null);
+  const saveTimerRef = useRef(null);
+
+  useEffect(() => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+        showToast("💾 保存しました");
+      } catch(e) {}
+    }, 800);
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
+  }, [tasks]);
 
   const upd = useCallback((id,f,v)=>setTasks(p=>p.map(t=>t.id===id?{...t,[f]:v}:t)),[]);
 
-  // Drag
+  const resetData = useCallback(() => {
+    if (confirm("すべてのデータを初期状態（サンプルデータ）に戻しますか？")) {
+      localStorage.removeItem(STORAGE_KEY);
+      const empty = Array.from({length:50-defaultTasks.length},(_,i)=>({id:defaultTasks.length+i+1,name:"",cat:"仕事",start:"",end:""}));
+      setTasks([...defaultTasks, ...empty]);
+      showToast("🔄 初期化しました");
+    }
+  }, []);
+
+  const clearAll = useCallback(() => {
+    if (confirm("すべてのタスクを空にしますか？")) {
+      const empty = Array.from({length:50},(_,i)=>({id:i+1,name:"",cat:"仕事",start:"",end:""}));
+      setTasks(empty);
+      showToast("🗑️ 全クリアしました");
+    }
+  }, []);
+
   const startDrag = useCallback((e,t,mode)=>{
     e.preventDefault(); e.stopPropagation();
     const s=pD(t.start), en=pD(t.end);
@@ -240,19 +289,22 @@ function App() {
   };
 
   return h("div", null,
-    // Header
     h("div",{className:"header"},
       h("h1",null,"📅 2026年 4月〜7月 スケジュール管理表"),
-      h("div",{className:"legend"},
-        ...CAT_KEYS.map(c=>h("div",{key:c,className:"legend-item"},
-          h("div",{className:"legend-dot",style:{background:CATEGORIES[c].bg}}),c))
+      h("div",{style:{display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}},
+        h("div",{className:"legend"},
+          ...CAT_KEYS.map(c=>h("div",{key:c,className:"legend-item"},
+            h("div",{className:"legend-dot",style:{background:CATEGORIES[c].bg}}),c))
+        ),
+        h("div",{className:"toolbar",style:{display:"flex",gap:8}},
+          h("button",{onClick:resetData},"↩ 初期データに戻す"),
+          h("button",{onClick:clearAll},"🗑 全クリア"),
+        )
       )
     ),
-    h("p",{className:"hint"},"💡 バーをドラッグで移動 ｜ 左右端をドラッグでリサイズ ｜ 日付欄クリックでカレンダー選択"),
+    h("p",{className:"hint"},"💡 バーをドラッグで移動 ｜ 左右端でリサイズ ｜ 日付クリックでカレンダー ｜ 編集は自動保存されます"),
 
-    // Main
     h("div",{className:"main"},
-      // Left
       h("div",{className:"left-panel"},
         h("div",{className:"left-header"},
           ...["No","タスク名","カテゴリ","開始日","終了日"].map(x=>h("div",{key:x},x))
@@ -284,15 +336,12 @@ function App() {
         )
       ),
 
-      // Right
       h("div",{className:"right-panel",onScroll:syncScroll},
         h("div",{className:"chart-inner",style:{minWidth:TOTAL*CW}},
-          // Month row
           h("div",{className:"month-row"},
             ...months.map(m=>h("div",{key:m.month,className:"month-cell",
               style:{width:m.count*CW,background:MONTH_COLORS[m.month]}},m.label))
           ),
-          // Day row
           h("div",{className:"day-row"},
             ...allDates.map((d,i)=>{
               const dow=d.getDay(), hol=isHoliday(d), mo=d.getMonth();
@@ -302,7 +351,6 @@ function App() {
               return h("div",{key:i,className:"day-cell",style:{width:CW,minWidth:CW,background:bg,color}},d.getDate());
             })
           ),
-          // DOW row
           h("div",{className:"dow-row"},
             ...allDates.map((d,i)=>{
               const dow=d.getDay(), hol=isHoliday(d), mo=d.getMonth();
@@ -312,7 +360,6 @@ function App() {
               return h("div",{key:i,className:"dow-cell",style:{width:CW,minWidth:CW,background:bg,color}},WEEKDAY_JP[dow]);
             })
           ),
-          // Task rows
           ...tasks.map((t,idx)=>{
             const s=pD(t.start), e=pD(t.end);
             const cat=CATEGORIES[t.cat]||CATEGORIES["仕事"];
@@ -321,7 +368,6 @@ function App() {
             const single = s&&e&&s.getTime()===e.getTime();
 
             return h("div",{key:t.id,className:"task-row"},
-              // Grid bg
               ...allDates.map((d,di)=>{
                 const dow=d.getDay(), hol=isHoliday(d);
                 let bg="transparent";
@@ -329,7 +375,6 @@ function App() {
                 else if(dow===6) bg="#F8FAFF";
                 return h("div",{key:di,className:"grid-cell",style:{width:CW,minWidth:CW,background:bg}});
               }),
-              // Bar
               hasBar ? h("div",{className:"bar-group",style:{left:bL,width:bW}},
                 !single && h("div",{className:"bar-handle bar-handle-l",onMouseDown:e=>startDrag(e,t,"resize-left")}),
                 h("div",{className:"bar-main",style:{background:cat.bg,color:cat.fg},
@@ -344,7 +389,6 @@ function App() {
       )
     ),
 
-    // Date picker
     dp ? h(DatePicker, {taskId:dp.taskId, field:dp.field, currentVal:dp.val,
       onSelect:upd, onClose:()=>setDp(null)}) : null
   );
